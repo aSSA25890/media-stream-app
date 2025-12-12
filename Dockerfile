@@ -1,15 +1,18 @@
-FROM node:18-alpine
+FROM alpine:3.18
 
-# Устанавливаем WireGuard
-RUN apk add --no-cache wireguard-tools iptables qrencode
+# Устанавливаем необходимые пакеты для WireGuard и QR-кодов
+RUN apk update && \
+    apk add --no-cache \
+    wireguard-tools \
+    iptables \
+    qrencode \
+    bash \
+    curl
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install --production
-
+# Копируем скрипты или конфигурации
 COPY . .
 
-EXPOSE 3000 51820/udp
-
-CMD ["node", "server.js"]
+# Пример команды по умолчанию
+CMD ["/bin/bash"]
