@@ -1,152 +1,131 @@
 const express = require('express');
-const { createProxyMiddleware } = require('http-proxy-middleware');
-require('dotenv').config();
-
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Настройки для МТС
-const TARGET_URL = process.env.TARGET_URL || 'https://yandex.ru';
-const MASK_DOMAIN = process.env.MASK_DOMAIN || 'yandex.net';
+// Создаем папку для конфигураций
+const configsDir = path.join(__dirname, 'configs');
+if (!fs.existsSync(configsDir)) {
+  fs.mkdirSync(configsDir);
+}
 
-// Middleware - минимизируем логи
 app.use(express.json());
-app.use((req, res, next) => {
-  // Убираем все отладочные заголовки
-  res.removeHeader('X-Powered-By');
-  res.removeHeader('Server');
-  next();
-});
+app.use(express.static('public'));
 
-// 1. ГЛАВНАЯ - выглядит как сервис Яндекса
+// 1. Главная страница
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
-    <html lang="ru">
+    <html>
     <head>
-      <meta charset="UTF-8">
-      <title>Yandex Services API</title>
+      <title>WireGuard VPN Manager</title>
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <style>
-        body { font-family: 'YS Text', Arial, sans-serif; margin: 0; padding: 20px; background: #fff; color: #000; }
-        .yandex-header { background: #ffcc00; padding: 20px; margin: -20px -20px 30px -20px; }
-        .service-card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 15px 0; }
-        .api-endpoint { font-family: monospace; background: #f5f5f6; padding: 10px; border-radius: 4px; margin: 5px 0; }
+        body { font-family: Arial; margin: 40px; background: #0f172a; color: white; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .card { background: #1e293b; padding: 25px; border-radius: 15px; margin: 20px 0; }
+        .btn { background: #3b82f6; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; }
+        .config { background: #334155; padding: 15px; border-radius: 10px; margin: 10px 0; font-family: monospace; }
       </style>
     </head>
     <body>
-      <div class="yandex-header">
-        <h1 style="margin:0; color:#000;">🔧 Яндекс.Сервисы API</h1>
-        <p>Внутренний API для интеграции сервисов Яндекс</p>
+      <div class="container">
+        <h1>🔒 WireGuard VPN Server</h1>
+        
+        <div class="card">
+          <h3>🚀 Создать новый VPN профиль</h3>
+          <p>Нажмите кнопку чтобы создать новую конфигурацию WireGuard</p>
+          <button class="btn" onclick="createConfig()">Создать конфигурацию</button>
+          <div id="result" style="margin-top: 20px;"></div>
+        </div>
+        
+        <div class="card">
+          <h3>📱 Как подключиться:</h3>
+          <p>1. Установите WireGuard на устройство</p>
+          <p>2. Отсканируйте QR код или импортируйте конфиг</p>
+          <p>3. Активируйте подключение</p>
+        </div>
       </div>
       
-      <div class="service-card">
-        <h3>Статус системы</h3>
-        <p><strong>Сервис:</strong> Яндекс.ПроксиГейт v2.1</p>
-        <p><strong>Статус:</strong> <span style="color:green">Работает в штатном режиме</span></p>
-        <p><strong>Назначение:</strong> Маршрутизация трафика между сервисами Яндекса</p>
-      </div>
-      
-      <div class="service-card">
-        <h3>Доступные эндпоинты:</h3>
-        <div class="api-endpoint">GET /api/yandex/health</div>
-        <div class="api-endpoint">GET /api/yandex/metrics</div>
-        <div class="api-endpoint">WebSocket /ws/yandex/data</div>
-        <div class="api-endpoint">POST /api/yandex/route</div>
-      </div>
-      
-      <div style="margin-top: 30px; font-size: 12px; color: #999;">
-        <p>© 2025 Яндекс. Использование этого API регулируется соглашением.</p>
-      </div>
+      <script>
+        async function createConfig() {
+          const resultDiv = document.getElementById('result');
+          resultDiv.innerHTML = '⏳ Создаем конфигурацию...';
+          
+          try {
+            const response = await fetch('/create-config', { method: 'POST' });
+            const data = await response.json();
+            
+            if (data.success) {
+              resultDiv.innerHTML = \`
+                <div class="config">
+                  <h4>✅ Конфигурация создана!</h4>
+                  <p><strong>IP клиента:</strong> \${data.client_ip}</p>
+                  <p><strong>Публичный ключ:</strong> \${data.public_key.substring(0, 20)}...</p>
+                  <p><strong>QR код:</strong></p>
+                  <img src="/configs/\${data.config_id}/qr.png" style="max-width: 200px;">
+                  <p><a href="/configs/\${data.config_id}/client.conf" download>📥 Скачать конфиг</a></p>
+                </div>
+              \`;
+            }
+          } catch (error) {
+            resultDiv.innerHTML = '❌ Ошибка: ' + error.message;
+          }
+        }
+      </script>
     </body>
     </html>
   `);
 });
 
-// 2. Health check - как у Яндекс API
-app.get('/api/yandex/health', (req, res) => {
-  res.json({
-    service: "yandex-proxygate",
-    version: "2.1.0",
-    status: "operational",
-    region: "ru-central1",
-    timestamp: new Date().toISOString()
-  });
-});
-
-// 3. WebSocket для МТС - имитируем Яндекс.Такси стрим
-app.use('/ws/yandex/data', createProxyMiddleware({
-  target: TARGET_URL,
-  changeOrigin: true,
-  ws: true,
-  pathRewrite: { '^/ws/yandex/data': '' },
-  logLevel: 'silent',
-  onProxyReq: (proxyReq, req, res) => {
-    // Ключевые заголовки для МТС
-    proxyReq.setHeader('X-Yandex-API-Key', 'internal-' + Math.random().toString(36).substr(2, 12));
-    proxyReq.setHeader('X-Yandex-Service', 'taxi-stream');
-    proxyReq.setHeader('X-Real-IP', req.ip || '8.8.8.8');
-    proxyReq.setHeader('User-Agent', 'YandexTaxi/5.25 (iPhone; iOS 17.1; Scale/3.00)');
-  }
-}));
-
-// 4. Основной прокси-эндпоинт для МТС
-app.use('/api/yandex/route', createProxyMiddleware({
-  target: TARGET_URL,
-  changeOrigin: true,
-  pathRewrite: { '^/api/yandex/route': '' },
-  logLevel: 'silent',
-  onProxyReq: (proxyReq, req, res) => {
-    // Заголовки как у легального Яндекс трафика
-    proxyReq.setHeader('X-Yandex-Request-ID', Math.random().toString(36).substr(2, 16));
-    proxyReq.setHeader('X-Forwarded-For', req.ip || '8.8.8.8');
-    proxyReq.setHeader('X-Forwarded-Host', MASK_DOMAIN);
-    proxyReq.setHeader('X-Yandex-Service', 'maps-api');
-    proxyReq.setHeader('Accept', 'application/json, text/html');
-    proxyReq.setHeader('Accept-Language', 'ru-RU,ru;q=0.9');
-    
-    // Убираем подозрительные заголовки
-    proxyReq.removeHeader('via');
-    proxyReq.removeHeader('x-forwarded-proto');
-  },
-  onProxyRes: (proxyRes, req, res) => {
-    // Очищаем ответ
-    delete proxyRes.headers['x-powered-by'];
-    delete proxyRes.headers['server'];
-    proxyRes.headers['server'] = 'yandex';
-  }
-}));
-
-// 5. Фоновые запросы к российским сайтам (обязательно для МТС)
-setInterval(async () => {
+// 2. Создание конфигурации WireGuard
+app.post('/create-config', (req, res) => {
   try {
-    const russianSites = [
-      'https://yandex.ru',
-      'https://mail.ru', 
-      'https://vk.com',
-      'https://sberbank.ru',
-      'https://gosuslugi.ru',
-      'https://rt.ru'
-    ];
+    const configId = 'client_' + Date.now();
+    const clientDir = path.join(configsDir, configId);
+    fs.mkdirSync(clientDir);
     
-    const site = russianSites[Math.floor(Math.random() * russianSites.length)];
-    const response = await fetch(site, { 
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
-      timeout: 3000 
+    // Генерируем ключи WireGuard
+    execSync(`wg genkey | tee ${path.join(clientDir, 'private.key')} | wg pubkey > ${path.join(clientDir, 'public.key')}`);
+    
+    const privateKey = fs.readFileSync(path.join(clientDir, 'private.key'), 'utf8').trim();
+    const publicKey = fs.readFileSync(path.join(clientDir, 'public.key'), 'utf8').trim();
+    
+    // Генерируем IP для клиента (10.8.0.x)
+    const clientNumber = Math.floor(Math.random() * 254) + 2;
+    const clientIP = `10.8.0.${clientNumber}`;
+    
+    // Конфигурация клиента
+    const clientConfig = `[Interface]
+PrivateKey = ${privateKey}
+Address = ${clientIP}/24
+DNS = 1.1.1.1, 8.8.8.8
+
+[Peer]
+PublicKey = SERVER_PUBLIC_KEY_HERE
+Endpoint = ${req.headers.host}:51820
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25`;
+    
+    fs.writeFileSync(path.join(clientDir, 'client.conf'), clientConfig);
+    
+    res.json({
+      success: true,
+      config_id: configId,
+      client_ip: clientIP,
+      public_key: publicKey,
+      config: clientConfig
     });
     
-    console.log(`[МТС Шум] Запрос к ${site}: ${response.status}`);
-  } catch (err) {
-    // Игнорируем ошибки
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
-}, 45000); // Каждые 45 секунд
+});
 
-// 6. Запуск сервера
+// 3. Запуск сервера
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Яндекс.ПроксиГейт запущен на порту ${PORT}`);
-  console.log(`🎯 Целевой URL: ${TARGET_URL}`);
-  console.log(`🎭 Маскировка под: ${MASK_DOMAIN}`);
+  console.log(`✅ VPN Server running on port ${PORT}`);
+  console.log(`🌐 Web interface: http://localhost:${PORT}`);
 });
