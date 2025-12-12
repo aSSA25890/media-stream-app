@@ -5,173 +5,148 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Ключевая настройка: на какой легальный сервис маскируемся
-const TARGET_URL = process.env.TARGET_URL || 'https://play.geforcenow.com';
-const MASK_DOMAIN = process.env.MASK_DOMAIN || 'cloudflare.com';
+// Настройки для МТС
+const TARGET_URL = process.env.TARGET_URL || 'https://yandex.ru';
+const MASK_DOMAIN = process.env.MASK_DOMAIN || 'yandex.net';
 
-// Middleware
+// Middleware - минимизируем логи
 app.use(express.json());
+app.use((req, res, next) => {
+  // Убираем все отладочные заголовки
+  res.removeHeader('X-Powered-By');
+  res.removeHeader('Server');
+  next();
+});
 
-// 1. ГЛАВНАЯ СТРАНИЦА - выглядит как CDN или сервис доставки контента
+// 1. ГЛАВНАЯ - выглядит как сервис Яндекса
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
-    <html>
+    <html lang="ru">
     <head>
-      <title>CDN Edge Node ${MASK_DOMAIN}</title>
+      <meta charset="UTF-8">
+      <title>Yandex Services API</title>
       <meta name="viewport" content="width=device-width, initial-scale=1">
-      <meta name="description" content="Content Delivery Network Edge Node">
       <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f7; color: #1d1d1f; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px; border-radius: 0 0 20px 20px; margin: -20px -20px 30px -20px; }
-        .card { background: white; padding: 25px; border-radius: 18px; margin: 20px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-        .status-dot { width: 12px; height: 12px; background: #34c759; border-radius: 50%; display: inline-block; margin-right: 8px; }
-        .endpoint { font-family: 'SF Mono', Menlo, monospace; background: #f2f2f7; padding: 12px; border-radius: 8px; margin: 8px 0; font-size: 14px; }
+        body { font-family: 'YS Text', Arial, sans-serif; margin: 0; padding: 20px; background: #fff; color: #000; }
+        .yandex-header { background: #ffcc00; padding: 20px; margin: -20px -20px 30px -20px; }
+        .service-card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 15px 0; }
+        .api-endpoint { font-family: monospace; background: #f5f5f6; padding: 10px; border-radius: 4px; margin: 5px 0; }
       </style>
     </head>
     <body>
-      <div class="header">
-        <h1>🛜 CDN Edge Node</h1>
-        <p>Content Delivery Network • ${MASK_DOMAIN} • Performance Optimized</p>
+      <div class="yandex-header">
+        <h1 style="margin:0; color:#000;">🔧 Яндекс.Сервисы API</h1>
+        <p>Внутренний API для интеграции сервисов Яндекс</p>
       </div>
       
-      <div class="card">
-        <h3><span class="status-dot"></span> Operational Status</h3>
-        <p><strong>Node ID:</strong> RND-${Math.random().toString(36).substr(2, 6).toUpperCase()}</p>
-        <p><strong>Location:</strong> Global Edge Network</p>
-        <p><strong>Uptime:</strong> 99.95%</p>
-        <p><strong>Load:</strong> <span id="load">${(Math.random() * 30 + 10).toFixed(1)}%</span></p>
+      <div class="service-card">
+        <h3>Статус системы</h3>
+        <p><strong>Сервис:</strong> Яндекс.ПроксиГейт v2.1</p>
+        <p><strong>Статус:</strong> <span style="color:green">Работает в штатном режиме</span></p>
+        <p><strong>Назначение:</strong> Маршрутизация трафика между сервисами Яндекса</p>
       </div>
       
-      <div class="card">
-        <h3>📊 Network Endpoints</h3>
-        <div class="endpoint">GET /api/cdn/v1/health</div>
-        <div class="endpoint">GET /api/cdn/v1/metrics</div>
-        <div class="endpoint">WebSocket /ws/cdn/stream</div>
-        <div class="endpoint">POST /api/cdn/v1/logs</div>
+      <div class="service-card">
+        <h3>Доступные эндпоинты:</h3>
+        <div class="api-endpoint">GET /api/yandex/health</div>
+        <div class="api-endpoint">GET /api/yandex/metrics</div>
+        <div class="api-endpoint">WebSocket /ws/yandex/data</div>
+        <div class="api-endpoint">POST /api/yandex/route</div>
       </div>
       
-      <div class="card">
-        <p style="font-size: 13px; color: #8e8e93;">
-          This edge node is part of a global content delivery network.
-          All connections are encrypted with TLS 1.3 and optimized for low latency.
-        </p>
+      <div style="margin-top: 30px; font-size: 12px; color: #999;">
+        <p>© 2025 Яндекс. Использование этого API регулируется соглашением.</p>
       </div>
-      
-      <script>
-        // Динамическое обновление нагрузки
-        setInterval(() => {
-          document.getElementById('load').textContent = 
-            (Math.random() * 30 + 10).toFixed(1) + '%';
-        }, 5000);
-      </script>
     </body>
     </html>
   `);
 });
 
-// 2. Health check - как у настоящего CDN
-app.get('/api/cdn/v1/health', (req, res) => {
+// 2. Health check - как у Яндекс API
+app.get('/api/yandex/health', (req, res) => {
   res.json({
-    status: "healthy",
-    service: "cdn_edge_node",
-    region: "global",
-    timestamp: new Date().toISOString(),
-    metrics: {
-      connections: Math.floor(Math.random() * 500) + 100,
-      bandwidth: (Math.random() * 1000 + 100).toFixed(1) + " Mbps",
-      latency: Math.floor(Math.random() * 50) + 10
-    }
+    service: "yandex-proxygate",
+    version: "2.1.0",
+    status: "operational",
+    region: "ru-central1",
+    timestamp: new Date().toISOString()
   });
 });
 
-// 3. WebSocket маскировка под стриминг данных
-app.use('/ws/cdn/stream', createProxyMiddleware({
+// 3. WebSocket для МТС - имитируем Яндекс.Такси стрим
+app.use('/ws/yandex/data', createProxyMiddleware({
   target: TARGET_URL,
   changeOrigin: true,
   ws: true,
-  pathRewrite: { '^/ws/cdn/stream': '' },
+  pathRewrite: { '^/ws/yandex/data': '' },
   logLevel: 'silent',
   onProxyReq: (proxyReq, req, res) => {
-    // Маскируем заголовки под легитимный трафик
-    proxyReq.setHeader('X-CDN-Node', 'edge-' + Math.random().toString(36).substr(2, 8));
-    proxyReq.setHeader('X-Forwarded-Host', MASK_DOMAIN);
+    // Ключевые заголовки для МТС
+    proxyReq.setHeader('X-Yandex-API-Key', 'internal-' + Math.random().toString(36).substr(2, 12));
+    proxyReq.setHeader('X-Yandex-Service', 'taxi-stream');
+    proxyReq.setHeader('X-Real-IP', req.ip || '8.8.8.8');
+    proxyReq.setHeader('User-Agent', 'YandexTaxi/5.25 (iPhone; iOS 17.1; Scale/3.00)');
   }
 }));
 
-// 4. HTTP прокси с маскировкой
-app.use('/api/cdn/v1/proxy', createProxyMiddleware({
+// 4. Основной прокси-эндпоинт для МТС
+app.use('/api/yandex/route', createProxyMiddleware({
   target: TARGET_URL,
   changeOrigin: true,
-  pathRewrite: { '^/api/cdn/v1/proxy': '' },
+  pathRewrite: { '^/api/yandex/route': '' },
   logLevel: 'silent',
   onProxyReq: (proxyReq, req, res) => {
-    // Ключевая маскировка: добавляем заголовки как у легального сервиса
-    proxyReq.setHeader('X-CDN-Request-ID', Math.random().toString(36).substr(2, 12));
-    proxyReq.setHeader('X-Forwarded-For', req.ip || '');
-    proxyReq.setHeader('X-Real-IP', req.ip || '');
-    proxyReq.setHeader('User-Agent', 'CDN-Edge-Node/1.0');
+    // Заголовки как у легального Яндекс трафика
+    proxyReq.setHeader('X-Yandex-Request-ID', Math.random().toString(36).substr(2, 16));
+    proxyReq.setHeader('X-Forwarded-For', req.ip || '8.8.8.8');
+    proxyReq.setHeader('X-Forwarded-Host', MASK_DOMAIN);
+    proxyReq.setHeader('X-Yandex-Service', 'maps-api');
+    proxyReq.setHeader('Accept', 'application/json, text/html');
+    proxyReq.setHeader('Accept-Language', 'ru-RU,ru;q=0.9');
     
-    // Если маскируемся под конкретный сервис
-    if (MASK_DOMAIN.includes('cloudflare')) {
-      proxyReq.setHeader('CF-Connecting-IP', req.ip || '');
-    }
-    if (MASK_DOMAIN.includes('yandex')) {
-      proxyReq.setHeader('X-Yandex-Cloud-Request-ID', Math.random().toString(36).substr(2, 16));
-    }
+    // Убираем подозрительные заголовки
+    proxyReq.removeHeader('via');
+    proxyReq.removeHeader('x-forwarded-proto');
   },
   onProxyRes: (proxyRes, req, res) => {
-    // Очищаем ответ от следов прокси
+    // Очищаем ответ
     delete proxyRes.headers['x-powered-by'];
     delete proxyRes.headers['server'];
+    proxyRes.headers['server'] = 'yandex';
   }
 }));
 
-// 5. Метрики (для правдоподобности)
-app.get('/api/cdn/v1/metrics', (req, res) => {
-  res.json({
-    node_type: "edge",
-    requests_per_minute: Math.floor(Math.random() * 1000) + 500,
-    cache_hit_rate: (Math.random() * 30 + 70).toFixed(1) + "%",
-    bandwidth_used: (Math.random() * 500 + 100).toFixed(1) + " GB"
-  });
-});
-
-// 6. Периодически обращаемся к легальным российским ресурсам (для правдоподобности)
+// 5. Фоновые запросы к российским сайтам (обязательно для МТС)
 setInterval(async () => {
   try {
-    // Список легальных ресурсов для "фоновых запросов"
-    const legitSites = [
+    const russianSites = [
       'https://yandex.ru',
+      'https://mail.ru', 
+      'https://vk.com',
       'https://sberbank.ru',
       'https://gosuslugi.ru',
-      'https://vk.com'
+      'https://rt.ru'
     ];
     
-    const randomSite = legitSites[Math.floor(Math.random() * legitSites.length)];
-    const response = await fetch(randomSite, { 
-      method: 'HEAD',
-      timeout: 5000 
+    const site = russianSites[Math.floor(Math.random() * russianSites.length)];
+    const response = await fetch(site, { 
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      timeout: 3000 
     });
-    console.log(`[CDN Noise] Ping to ${randomSite}: ${response.status}`);
+    
+    console.log(`[МТС Шум] Запрос к ${site}: ${response.status}`);
   } catch (err) {
-    // Игнорируем ошибки - это просто "шум"
+    // Игнорируем ошибки
   }
-}, 60000); // Каждую минуту
+}, 45000); // Каждые 45 секунд
 
-// 7. 404 handler - тоже маскируем
-app.use((req, res) => {
-  res.status(404).json({
-    error: "cdn_endpoint_not_found",
-    message: "The requested CDN endpoint does not exist",
-    documentation: "https://developer." + MASK_DOMAIN + "/docs/cdn-api"
-  });
-});
-
-// 8. Запуск сервера с привязкой к 0.0.0.0 (ВАЖНО ДЛЯ RENDER!)
-const SERVER_PORT = process.env.PORT || 3000;
-app.listen(SERVER_PORT, '0.0.0.0', () => {
-  console.log("🛜 CDN Edge Node running on port " + SERVER_PORT + " (0.0.0.0)");
-  console.log("🎯 Target: " + TARGET_URL);
-  console.log("🎭 Masking as: " + MASK_DOMAIN);
+// 6. Запуск сервера
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Яндекс.ПроксиГейт запущен на порту ${PORT}`);
+  console.log(`🎯 Целевой URL: ${TARGET_URL}`);
+  console.log(`🎭 Маскировка под: ${MASK_DOMAIN}`);
 });
